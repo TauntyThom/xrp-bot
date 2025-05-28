@@ -14,7 +14,12 @@ client.API_URL = 'https://testnet.binance.vision/api'  # Testnet URL
 
 app = Flask(__name__)
 
-# Calculate how much XRP to buy with ~10% of USDT balance
+# ✅ Test route to confirm deployment is working
+@app.route('/test')
+def test():
+    return 'Bot is live!'
+
+# 🔁 Calculate how much XRP to buy with ~10% of USDT balance
 def calculate_quantity(symbol="XRPUSDT", allocation_pct=0.10):
     try:
         balance = client.get_asset_balance(asset='USDT')
@@ -26,6 +31,7 @@ def calculate_quantity(symbol="XRPUSDT", allocation_pct=0.10):
         print("Error calculating quantity:", e)
         return 0
 
+# 📩 Webhook endpoint to receive TradingView alerts
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.json
@@ -51,3 +57,4 @@ def webhook():
         else:
             print("⚠️ Quantity was zero — no order placed")
     return "OK"
+
