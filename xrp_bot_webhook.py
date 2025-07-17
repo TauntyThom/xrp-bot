@@ -12,61 +12,74 @@ API_SECRET = os.getenv("BINANCE_API_SECRET")
 client = Client(API_KEY, API_SECRET)
 app = Flask(__name__)
 
-# Minimum notional threshold for XRPUSDT on Binance (e.g. $10)
-MIN_NOTIONAL = 11.0
-
-# Calculate how much XRP to buy with ~10% of USDT balance
-def calculate_quantity(symbol="XRPUSDT", allocation_pct=0.10):
+# Use 99% of USDT balance to buy XRP
+def calculate_quantity(symbol="XRPUSDT", allocation_pct=0.99):
     try:
         balance = client.get_asset_balance(asset='USDT')
-        usdt = float(balance['free'])
+        usdt = float(balance['free']) * allocation_pct
         price = float(client.get_symbol_ticker(symbol=symbol)['price'])
-        quantity = round((usdt * allocation_pct) / price, 1)
-        notional = quantity * price
-        return quantity if notional >= MIN_NOTIONAL else 0
-    except:
+
+        # Binance minimum notional is ~$10, and quantities must have 1 decimal for XRP
+        quantity = round(usdt / price, 1)
+
+        # Avoid quantity too low to be accepted
+        return quantity if quantity * price >= 10 else 0
+    except Exception as e:
+        print("Error calculating quantity:", e)
         return 0
 
-# Get 99% of available XRP balance to avoid order failure
+# Sell 99% of available XRP
 def get_xrp_balance():
     try:
         balance = client.get_asset_balance(asset='XRP')
         xrp = float(balance['free']) * 0.99
-        price = float(client.get_symbol_ticker(symbol='XRPUSDT')['price'])
-        notional = xrp * price
-        return round(xrp, 1) if notional >= MIN_NOTIONAL else 0
-    except:
+        return round(xrp, 1)
+    except Exception as e:
+        print("Error fetching XRP balance:", e)
         return 0
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.json
-    signal = (data.get("signal") or "").upper()
+    signal = data.get("signal")
+    print("Received signal:", signal)
 
-    if signal == "BUY":
+    if signal and signal.upper() == "BUY":
+        print("🟢 Processing BUY")
         quantity = calculate_quantity()
+        print("Calculated quantity:", quantity)
+
         if quantity > 0:
             try:
-                client.create_order(
+                order = client.create_order(
                     symbol="XRPUSDT",
                     side="BUY",
                     type="MARKET",
                     quantity=quantity
                 )
-            except:
-                pass
+                print("✅ Buy order placed:", order)
+            except Exception as e:
+                print("❌ Buy order error:", str(e))
+        else:
+            print("⚠️ Quantity was zero — no order placed")
 
-    elif signal == "SELL":
+    elif signal and signal.upper() == "SELL":
+        print("🔴 Processing SELL")
         quantity = get_xrp_balance()
+        print("Sell quantity:", quantity)
+
         if quantity > 0:
             try:
-                client.create_order(
+                order = client.create_order(
                     symbol="XRPUSDT",
                     side="SELL",
                     type="MARKET",
                     quantity=quantity
                 )
-            except:
-                pass
+                print("✅ Sell order placed:", order)
+            except Exception as e:
+                print("❌ Sell order error:", str(e))
+        else:
+            print("⚠️ Sell quantity was zero — no order placed")
 
     return "OK"
