@@ -19,21 +19,22 @@ def calculate_quantity(symbol="XRPUSDT", allocation_pct=0.99):
         usdt = float(balance['free']) * allocation_pct
         price = float(client.get_symbol_ticker(symbol=symbol)['price'])
 
-        # Binance minimum notional is ~$10, and quantities must have 1 decimal for XRP
+        # Binance minimum notional is ~$10
         quantity = round(usdt / price, 1)
-
-        # Avoid quantity too low to be accepted
         return quantity if quantity * price >= 10 else 0
     except Exception as e:
         print("Error calculating quantity:", e)
         return 0
 
-# Sell 99% of available XRP
-def get_xrp_balance():
+# Sell 99% of available XRP, but only if above min notional
+def get_xrp_balance(symbol="XRPUSDT"):
     try:
         balance = client.get_asset_balance(asset='XRP')
         xrp = float(balance['free']) * 0.99
-        return round(xrp, 1)
+        price = float(client.get_symbol_ticker(symbol=symbol)['price'])
+
+        quantity = round(xrp, 1)
+        return quantity if quantity * price >= 10 else 0
     except Exception as e:
         print("Error fetching XRP balance:", e)
         return 0
@@ -57,7 +58,7 @@ def webhook():
                     type="MARKET",
                     quantity=quantity
                 )
-                print("✅ Buy order placed:", order)
+                print("✅ Buy order placed.")
             except Exception as e:
                 print("❌ Buy order error:", str(e))
         else:
@@ -76,7 +77,7 @@ def webhook():
                     type="MARKET",
                     quantity=quantity
                 )
-                print("✅ Sell order placed:", order)
+                print("✅ Sell order placed.")
             except Exception as e:
                 print("❌ Sell order error:", str(e))
         else:
